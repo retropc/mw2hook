@@ -3,10 +3,13 @@
  * All rights reserved.
  * See LICENSE.txt for licensing information.
  */
+
+#define WIN32_LEAN_AND_MEAN
  
 #include <windows.h>
 #include <detours.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define VERSION "1.00"
 #define DLLNAME "mw2shim.dll"
@@ -124,7 +127,7 @@ HANDLE executeprocess(char *executable, char *exeargs, char *dll) {
   
   if(GetFullPathName(executable, sizeof(exepathbuf), (LPSTR)exepathbuf, NULL))
     executable = exepathbuf;
-  
+
   INFO("Executing \"%s\"... ", executable);
   memset(&pi, 0, sizeof(pi));
   memset(&si, 0, sizeof(si));

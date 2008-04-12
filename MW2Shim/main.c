@@ -4,10 +4,13 @@
  * See LICENSE.txt for licensing information.
  */
  
+#define WIN32_LEAN_AND_MEAN
+
 #include <windows.h>
 #include <detours.h>
 #include <stdio.h>
 #include <time.h>
+#include <stdlib.h>
 
 #include "mw2shim.h"
 

@@ -1,9 +1,8 @@
 syntax: glob
-*.log
 *.ncb
 *.suo
 *.vcproj.*.user
 release
 debug
-MW2{Shim,Inject}/{Release,Debug}
-
+MW2*/{Release,Debug}
+*.log

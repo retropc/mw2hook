@@ -5,6 +5,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MW2Shim", "MW2Shim\MW2Shim.
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MW2Inject", "MW2Inject\MW2Inject.vcproj", "{8C002CD3-E444-4ED8-9DA9-D87867A5DB2A}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MW2HookSetup", "MW2HookSetup\MW2HookSetup.vcproj", "{4467CD71-4CF5-4AF0-9847-E8DC751FD09F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -19,6 +21,10 @@ Global
 		{8C002CD3-E444-4ED8-9DA9-D87867A5DB2A}.Debug|Win32.Build.0 = Debug|Win32
 		{8C002CD3-E444-4ED8-9DA9-D87867A5DB2A}.Release|Win32.ActiveCfg = Release|Win32
 		{8C002CD3-E444-4ED8-9DA9-D87867A5DB2A}.Release|Win32.Build.0 = Release|Win32
+		{4467CD71-4CF5-4AF0-9847-E8DC751FD09F}.Debug|Win32.ActiveCfg = Debug|Win32
+		{4467CD71-4CF5-4AF0-9847-E8DC751FD09F}.Debug|Win32.Build.0 = Debug|Win32
+		{4467CD71-4CF5-4AF0-9847-E8DC751FD09F}.Release|Win32.ActiveCfg = Release|Win32
+		{4467CD71-4CF5-4AF0-9847-E8DC751FD09F}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
