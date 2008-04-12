@@ -32,7 +32,7 @@ static void configurepatches(void) {
   FILE *config;
   int i;
  
-  if(GetEnvironmentVariableA("mw2patchconf", buf, sizeof(buf))) {
+  if(GetEnvironmentVariableA("mw2shim_conf", buf, sizeof(buf))) {
     configfile = buf;
 
     logentry("Config envvar found: %s", configfile);
@@ -126,13 +126,13 @@ static void detachpatches(void) {
 }
 
 BOOL WINAPI DllMain(HINSTANCE hinst, DWORD dwReason, LPVOID reserved) {
-  if(GetEnvironmentVariableA("mw2patch_dontattach", NULL, 0))
+  if(GetEnvironmentVariableA("mw2shim_dontattach", NULL, 0))
     return TRUE;
-    
+
   if (dwReason == DLL_PROCESS_ATTACH) {
     openlog(LOGFILE);
     
-    logentry("MW2Patch " VERSION " started");
+    logentry("MW2Shim " VERSION " attached to parent process");
     
     activepatches = (int *)malloc(sizeof(int) * patchcount);
     if(!activepatches)
@@ -159,4 +159,8 @@ int WINAPI querypatches(int id, char **name, char **description) {
   *name = patches[id].name;
   *description = patches[id].description;
   return 0;
+}
+
+void WINAPI queryversion(char **v) {
+  *v = VERSION;
 }

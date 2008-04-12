@@ -7,15 +7,15 @@
 #ifndef __HOOKDLL_H
 #define __HOOKDLL_H
 
-#define LOGFILE "mw2patch.log"
-#define CONFIGFILE "mw2patch.conf"
+#define LOGFILE "mw2shim.log"
+#define CONFIGFILE "mw2shim.conf"
 
 #define ALPHA 0.75
 #define RATE (1000/40)
 
 #define DEBUG_LOG
 
-#define VERSION "2.00"
+#define VERSION "1.00"
 
 void openlog(char *);
 void closelog(void);

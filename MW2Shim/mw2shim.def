@@ -1,3 +1,4 @@
-LIBRARY	"HookDLL"
+LIBRARY	"MW2Shim"
 EXPORTS 
   querypatches @1
+  queryversion @2

@@ -59,6 +59,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="detours.lib"
+				ModuleDefinitionFile="mw2shim.def"
 				GenerateDebugInformation="true"
 				TargetMachine="1"
 			/>
@@ -132,6 +133,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="detours.lib"
+				ModuleDefinitionFile="mw2shim.def"
 				GenerateDebugInformation="true"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
