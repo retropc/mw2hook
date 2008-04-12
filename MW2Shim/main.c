@@ -18,7 +18,6 @@ static void activatepatch(char *name) {
   
   for(i=0;i<patchcount;i++) {
     if(!strcmp(patches[i].name, name)) {
-      logentry("Activating patch: %s", patches[i].name);
       activepatches[i] = 1;
       return;
     }
@@ -32,43 +31,42 @@ static void configurepatches(void) {
   FILE *config;
   int i;
  
-  if(GetEnvironmentVariableA("mw2shim_conf", buf, sizeof(buf))) {
+  if(GetEnvironmentVariableA("mw2shim_configfile", buf, sizeof(buf))) {
     configfile = buf;
 
     logentry("Config envvar found: %s", configfile);
-    return;
-  }
-  
-  if(!fopen_s(&config, configfile, "r")) {
-    logentry("Config file found: %s", configfile);
     
-    while(fgets(buf, sizeof(buf), config) != NULL) {
-      /* comments */
-      if(buf[0] == '#')
-        continue;
+    if(!fopen_s(&config, configfile, "r")) {
+      logentry("Successfully opened config file.");
+    
+      while(fgets(buf, sizeof(buf), config) != NULL) {
+        /* comments */
+        if(buf[0] == '#')
+          continue;
         
-      /* strip \r\n */
-      for(p=buf;*p;p++)
-        if(*p == '\n' || *p == '\r')
-          *p = '\0';
+        /* strip \r\n */
+        for(p=buf;*p;p++)
+          if(*p == '\n' || *p == '\r')
+            *p = '\0';
           
-      /* empty lines */
-      if(buf[0] == '\0')
-        continue;
+        /* empty lines */
+        if(buf[0] == '\0')
+          continue;
         
-      activatepatch(buf);
-    }
+        activatepatch(buf);
+      }
     
-    fclose(config);
-    return;
+      fclose(config);
+      return;
+    } else {
+      logentry("Unable to open config file.");
+    }
   }
   
-  logentry("No environmental variable or config file or found, activating all patches...");
+  logentry("No config file found, activating all patches...");
   
-  for(i=0;i<patchcount;i++) {
-    logentry("Activating patch: %s", patches[i].name);
+  for(i=0;i<patchcount;i++)
     activepatches[i] = 1;
-  }
 }
 
 static void attachpatches(void) {
@@ -126,19 +124,24 @@ static void detachpatches(void) {
 }
 
 BOOL WINAPI DllMain(HINSTANCE hinst, DWORD dwReason, LPVOID reserved) {
+  char logbuf[1024];
+  
   if(GetEnvironmentVariableA("mw2shim_dontattach", NULL, 0))
     return TRUE;
 
   if (dwReason == DLL_PROCESS_ATTACH) {
-    openlog(LOGFILE);
+    if(GetEnvironmentVariableA("mw2shim_logfile", logbuf, sizeof(logbuf))) {
+      openlog(logbuf);
+    } else {
+      openlog(LOGFILE);
+    }
     
-    logentry("MW2Shim " VERSION " attached to parent process");
+    logentry("MW2Shim " VERSION " attached to process.");
     
     activepatches = (int *)malloc(sizeof(int) * patchcount);
     if(!activepatches)
       return TRUE;
     
-    logentry("Configuring patches...");
     configurepatches();
     
     attachpatches();

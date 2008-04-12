@@ -71,7 +71,7 @@ void openlog(char *filename) {
   if(logfile == INVALID_HANDLE_VALUE)
     return;
     
-  __logentry("Log opened");
+  __logentry("Log opened.");
 }
 
 void closelog(void) {
@@ -83,10 +83,10 @@ void closelog(void) {
   EnterCriticalSection(&filelock);
   
   if(logfile != INVALID_HANDLE_VALUE) {
-    __logentry("Log closed");
+    __logentry("Log closed.");
+    FlushFileBuffers(logfile);
     CloseHandle(logfile);
     logfile = INVALID_HANDLE_VALUE;
-  
   }
   LeaveCriticalSection(&filelock);
   DeleteCriticalSection(&filelock);
