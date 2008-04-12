@@ -1,0 +1,8 @@
+syntax: glob
+*.ncb
+*.suo
+*.vcproj.*.user
+release
+debug
+MW2{Shim,Inject}/{Release,Debug}
+
