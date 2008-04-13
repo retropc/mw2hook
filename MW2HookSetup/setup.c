@@ -169,7 +169,7 @@ static int createshortcut(char *desktopdir, char *hookdir, char *gamename, char 
   return 1;
 }
 
-#define SHORTCUTHELP "hortcuts can be made by:\r\n- Creating a shortcut to mw2inject.exe (in the installation directory) with:\r\n    - The arguments set to the game executable.\r\n    - The working directory to the game path.\r\n- Compatibility mode set to Windows 95 on the game executable but not the mw2inject shortcut (go to properties for the main exe, compatibility tab)."
+#define SHORTCUTHELP "hortcuts can be made by:\r\n- Creating a shortcut to mw2inject.exe (in the installation directory) with the arguments set to the game executable.\r\n- Compatibility mode set to Windows 95 on the game executable but not the mw2inject shortcut (go to properties for the main exe, compatibility tab)."
 
 static int setcompatmode(char *gamepath, char *gameexe) {
   HKEY h;
