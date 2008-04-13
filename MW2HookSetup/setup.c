@@ -10,6 +10,8 @@
 #include <string.h>
 #include <stdio.h>
 
+#define VERSION "1.00"
+
 static int CALLBACK bfcallback(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData) {
   char *defaultdir = (char *)lpData;
   if(uMsg != BFFM_INITIALIZED)
@@ -250,6 +252,22 @@ static void createshortcuts(char *installdir) {
   MessageBox(0, "More s" SHORTCUTHELP, MSGBOX_TITLE, MB_ICONINFORMATION);
 }
 
+static void createrecord(char *installdir) {
+  HKEY h;
+  DWORD len;
+  
+  if(RegCreateKeyEx(HKEY_CURRENT_USER, "Software\\Warp13\\MW2Hook", 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &h, NULL) != ERROR_SUCCESS)
+    return;
+    
+  len = (DWORD)strlen(installdir);
+  RegSetValueEx(h, "InstallDir", 0, REG_SZ, installdir, len);
+  
+  len = (DWORD)strlen(VERSION);
+  RegSetValueEx(h, "InstallVersion", 0, REG_SZ, VERSION, len);
+  
+  RegCloseKey(h);
+}
+
 int setup(void) {
   char installdir[MAX_PATH + 1];
   int dircreated = 0;
@@ -275,6 +293,7 @@ int setup(void) {
     return 3;
   }
 
+  createrecord(installdir);
   createshortcuts(installdir);
   
   MessageBox(0, "Installation complete!", MSGBOX_TITLE, MB_ICONINFORMATION);
