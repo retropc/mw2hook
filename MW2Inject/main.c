@@ -35,7 +35,7 @@ typedef struct patches {
   patch p[];
 } patches;
 
-patches *getpatches(HMODULE shim) {
+static patches *getpatches(HMODULE shim) {
   querypatches qp;
   patches *p;
   int i, patchcount;
@@ -71,7 +71,17 @@ patches *getpatches(HMODULE shim) {
   return p;
 }
 
-int tempfile(char *prefix, char *buf) {
+static void strippath(char *buf) {
+  char *p;
+  for(p=buf + strlen(buf) - 1;p!=buf;p--) {
+    if(*p == '\\') {
+      *p = '\0';
+      break;
+    }
+  }
+}
+
+static int tempfile(char *prefix, char *buf) {
   char pbuf[MAX_PATH];
   int r;
   
@@ -85,7 +95,7 @@ int tempfile(char *prefix, char *buf) {
   return 1;
 }
 
-void usage(char *name, patches *p) {
+static void usage(char *name, patches *p) {
   int i;
   
   INFO("Usage: %s [options] [executable]\r\n", name);
@@ -99,7 +109,7 @@ void usage(char *name, patches *p) {
   pause = 1;
 }
 
-char *lasterrormessage(void) {
+static char *lasterrormessage(void) {
   static char buf[1024];
   
   if(!FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&buf, sizeof(buf), NULL))
@@ -108,7 +118,7 @@ char *lasterrormessage(void) {
   return buf;
 }
 
-char *getversion(HMODULE shim) {
+static char *getversion(HMODULE shim) {
   char *v;
   queryversion qv;
   
@@ -120,13 +130,19 @@ char *getversion(HMODULE shim) {
   return v;
 }
 
-HANDLE executeprocess(char *executable, char *exeargs, char *dll) {
+static HANDLE executeprocess(char *executable, char *exeargs, char *dll) {
   STARTUPINFO si;
   PROCESS_INFORMATION pi;
-  char exepathbuf[MAX_PATH * 2];
+  char exepathbuf[MAX_PATH * 2], *pcurdir = NULL, curdir[MAX_PATH*2];
   
-  if(GetFullPathName(executable, sizeof(exepathbuf), (LPSTR)exepathbuf, NULL))
+  if(GetFullPathName(executable, sizeof(exepathbuf), (LPSTR)exepathbuf, NULL)) {
     executable = exepathbuf;
+    
+    strcpy_s(curdir, sizeof(curdir), exepathbuf);
+    strippath(curdir);
+    pcurdir = curdir;
+  }
+
 
   INFO("Executing \"%s\"... ", executable);
   memset(&pi, 0, sizeof(pi));
@@ -135,7 +151,7 @@ HANDLE executeprocess(char *executable, char *exeargs, char *dll) {
         
   SetLastError(0);
 
-  if(!DetourCreateProcessWithDll(executable, NULL, NULL, NULL, TRUE, CREATE_DEFAULT_ERROR_MODE|CREATE_SUSPENDED, NULL, NULL, &si, &pi, NULL, dll, NULL)) {
+  if(!DetourCreateProcessWithDll(executable, NULL, NULL, NULL, TRUE, CREATE_DEFAULT_ERROR_MODE|CREATE_SUSPENDED, NULL, pcurdir, &si, &pi, NULL, dll, NULL)) {
     INFO("\r\n");
     FATAL("Error executing (code: %d): %s", GetLastError(), lasterrormessage());
     return INVALID_HANDLE_VALUE;
@@ -145,7 +161,7 @@ HANDLE executeprocess(char *executable, char *exeargs, char *dll) {
   }
 }
 
-int waitforlog(HANDLE h, HANDLE log) {
+static int waitforlog(HANDLE h, HANDLE log) {
   HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
   CONSOLE_SCREEN_BUFFER_INFO csbi; 
   char *ps;
@@ -155,7 +171,7 @@ int waitforlog(HANDLE h, HANDLE log) {
     console = INVALID_HANDLE_VALUE;
       
   for(ps=spinner;;) {
-    if(WaitForSingleObject(h, 1) != WAIT_TIMEOUT) {
+    if(WaitForSingleObject(h, 100) != WAIT_TIMEOUT) {
       terminated = 1;
       break;
     }
@@ -176,7 +192,7 @@ int waitforlog(HANDLE h, HANDLE log) {
   return terminated;
 }
 
-int parsebuf(char *buf, int size) {
+static int parsebuf(char *buf, int size) {
   char *p, *lastpos = buf;
   int i;
   
@@ -193,7 +209,7 @@ int parsebuf(char *buf, int size) {
   return (int)(lastpos - buf);
 }
 
-void taillog(HANDLE h, HANDLE log, int terminated) {
+static void taillog(HANDLE h, HANDLE log, int terminated) {
   DWORD lastsize = 0, newsize;
   char *buf = NULL;
   int startpos = 0;
@@ -255,7 +271,7 @@ void taillog(HANDLE h, HANDLE log, int terminated) {
 }
 
 /* first argument that doesn't begin with / == program name */
-int processargs(int argc, char **argv, char **executable, char **exeargs, patches *p) {
+static int processargs(int argc, char **argv, char **executable, char **exeargs, patches *p) {
   int i;  
   static char argbuf[4096];
   
@@ -297,7 +313,7 @@ int processargs(int argc, char **argv, char **executable, char **exeargs, patche
   return 1;
 }
 
-HANDLE setuplog(char *filename) {
+static HANDLE setuplog(char *filename) {
   HANDLE hlogfile = INVALID_HANDLE_VALUE;
   
   if(!tempfile("mw2", filename)) {
@@ -312,7 +328,7 @@ HANDLE setuplog(char *filename) {
   return hlogfile;
 }
 
-HANDLE getdll(char *dllname) {
+static HANDLE getdll(char *dllname) {
   HANDLE shim;
   
   if(!SetEnvironmentVariable("mw2shim_dontattach", "1")) {
@@ -335,7 +351,7 @@ HANDLE getdll(char *dllname) {
   return shim;
 }
 
-int efwrite(HANDLE h, char *format, ...) {
+static int efwrite(HANDLE h, char *format, ...) {
   char buf[1024];
   va_list ap;
   size_t len;
@@ -350,7 +366,7 @@ int efwrite(HANDLE h, char *format, ...) {
   return 1;
 }
 
-char *setupconfig(patches *p) { 
+static char *setupconfig(patches *p) { 
   static char configfile[MAX_PATH];
   HANDLE h;
   
@@ -396,26 +412,20 @@ char *setupconfig(patches *p) {
   return configfile;
 }
 
-void closeconfig(char *filename) {
+static void closeconfig(char *filename) {
   if(filename)
     DeleteFile(filename);
 }
 
 static int setuppath(void) {
-  char buf[MAX_PATH], *envbuf, *envbuf2, *p;
+  char buf[MAX_PATH], *envbuf, *envbuf2;
   DWORD len, newlen;
   
   if(!GetModuleFileName(NULL, buf, sizeof(buf))) {
     FATAL("Unable to get dll path");
     return 0;
   }
-  
-  for(p=buf + strlen(buf) - 1;p!=buf;p--) {
-    if(*p == '\\') {
-      *p = '\0';
-      break;
-    }
-  }
+  strippath(buf);
   
   len = GetEnvironmentVariable("PATH", NULL, 0);
   if(!len) {
@@ -438,10 +448,7 @@ static int setuppath(void) {
     return 0;
   }
   
-  
   len = sprintf_s(envbuf2, newlen, "\"%s\";%s", buf, envbuf);
-  MessageBox(0, envbuf2, 0, 0);
-  printf("%d %d\n", len, newlen);
   
   if(!SetEnvironmentVariable("PATH", envbuf2)) {
     FATAL("Unable to set dll path.");
