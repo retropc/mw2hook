@@ -1,4 +1,5 @@
 syntax: glob
+*.exe
 *.ncb
 *.suo
 *.vcproj.*.user

@@ -401,13 +401,66 @@ void closeconfig(char *filename) {
     DeleteFile(filename);
 }
 
-int main(int argc, char *argv[]) {
+static int setuppath(void) {
+  char buf[MAX_PATH], *envbuf, *envbuf2, *p;
+  DWORD len, newlen;
+  
+  if(!GetModuleFileName(NULL, buf, sizeof(buf))) {
+    FATAL("Unable to get dll path");
+    return 0;
+  }
+  
+  for(p=buf + strlen(buf) - 1;p!=buf;p--) {
+    if(*p == '\\') {
+      *p = '\0';
+      break;
+    }
+  }
+  
+  len = GetEnvironmentVariable("PATH", NULL, 0);
+  if(!len) {
+    FATAL("Unable to lookup PATH envvar.");
+    return 0;
+  }
+  /*      %PATH% ""  ;   dllpath  */
+  newlen = len + 2 + 1 + strlen(buf);
+  envbuf = (char *)malloc(len + newlen);
+  if(!envbuf) {
+    FATAL("Path allocation error.");
+    return 0;
+  }
+  /* len includes null terminator */
+  envbuf2 = envbuf + len;
+  
+  if(GetEnvironmentVariable("PATH", envbuf, len) != len - 1) {
+    FATAL("dll path envvar fetch error.")
+    free(envbuf);
+    return 0;
+  }
+  
+  
+  len = sprintf_s(envbuf2, newlen, "\"%s\";%s", buf, envbuf);
+  MessageBox(0, envbuf2, 0, 0);
+  printf("%d %d\n", len, newlen);
+  
+  if(!SetEnvironmentVariable("PATH", envbuf2)) {
+    FATAL("Unable to set dll path.");
+    free(envbuf);
+    return 0;
+  }
+  
+  free(envbuf);
+  return 1;
+}
+
+int __main(int argc, char **argv) {
   patches *p;
   char *version, *executable = NULL, *exeargs = NULL;
   HMODULE shim;
 
-  INFO("MW2Inject\r\n=========\r\n\r\nCopyright (C) Chris Porter 2008, all rights reserved.\r\n");
-
+  if(!setuppath())
+    return 1;
+  
   if(!(shim = getdll(DLLNAME)))
     return 1;
     
@@ -419,7 +472,7 @@ int main(int argc, char *argv[]) {
   } else {
     INFO("Version: %s\r\n\r\n", VERSION);
   }
-     
+  
   p = getpatches(shim);
   if(!p)
     return 1;
@@ -456,8 +509,19 @@ int main(int argc, char *argv[]) {
     closeconfig(configfile);
   }
   
+  return 0;  
+}
+
+int main(int argc, char *argv[]) {
+  int ret;
+  
+  INFO("MW2Inject\r\n=========\r\n\r\nCopyright (C) Chris Porter 2008, all rights reserved.\r\n");
+  
+  ret = __main(argc, argv);
   if(pause) {
     INFO("\r\nPress enter to continue.\r\n");
     getc(stdin);
   }
+  
+  return ret;
 }

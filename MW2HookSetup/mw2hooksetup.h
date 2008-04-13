@@ -22,11 +22,12 @@
 
 #ifndef INSTALLFILE
 #define INSTALLFILE(x) x "\0"
+#define PREFIX(x) x
 #endif
 
 static char *files = { 
-  INSTALLFILE(EXENAME)
-  INSTALLFILE(SHIMDLL)
+  PREFIX("release\\") INSTALLFILE(EXENAME)
+  PREFIX("release\\") INSTALLFILE(SHIMDLL)
   INSTALLFILE("LICENSE.TXT")
   INSTALLFILE("")
 };
