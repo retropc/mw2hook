@@ -228,14 +228,14 @@ static void taillog(HANDLE h, HANDLE log, int terminated) {
       
       newbuf = (char *)realloc(buf, startpos + toread + 1);
       if(!newbuf) {
-        WARNING("Logfile read allocation error.\r\n");
+        WARNING("Log file read allocation error.\r\n");
         break;
       }
       buf = newbuf;
       buf[startpos + toread] = '\0';
       
       if(!ReadFile(log, buf + startpos, toread, &readbytes, 0) || (readbytes != toread)) {
-        WARNING("Logfile read error.\r\n");
+        WARNING("Log file read error.\r\n");
         break;
       }
       
@@ -448,7 +448,7 @@ static int setuppath(void) {
     return 0;
   }
   
-  len = sprintf_s(envbuf2, newlen, "\"%s\";%s", buf, envbuf);
+  len = sprintf_s(envbuf2, newlen, "%s;%s", buf, envbuf);
   
   if(!SetEnvironmentVariable("PATH", envbuf2)) {
     FATAL("Unable to set dll path.");
