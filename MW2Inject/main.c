@@ -571,7 +571,7 @@ int __main(int argc, char **argv) {
 int main(int argc, char *argv[]) {
   int ret;
   
-  INFO("MW2Inject\r\n=========\r\n\r\nCopyright (C) Chris Porter 2008, all rights reserved.\r\n");
+  INFO("MW2Inject\r\n=========\r\n\r\nCopyright (C) Chris Porter 2008-2009, all rights reserved.\r\n");
   
   ret = __main(argc, argv);
   if(pause) {
