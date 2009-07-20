@@ -6,4 +6,5 @@ syntax: glob
 release
 debug
 MW2*/{Release,Debug}
+{Release,Debug}
 *.log
