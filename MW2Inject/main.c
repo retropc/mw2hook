@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define VERSION "1.00"
+#define VERSION "1.10"
 #define DLLNAME "mw2shim.dll"
 
 #define FATAL(x, ...) { fprintf(stderr, x , ## __VA_ARGS__); pause = 1; }
@@ -21,12 +21,15 @@
 static char spinner[] = "|/-\\";
 static int pause = 0;
 
-typedef int (WINAPI *querypatches)(int id, char **name, char **description);
+typedef int (WINAPI *querypatches)(int id, char **name, char **description, char **defaultargs, char **argshelp);
 typedef void (WINAPI *queryversion)(char **v);
 
 typedef struct patch {
   char *name;
   char *desc;
+  char *defaultargs;
+  char *argshelp;
+  char *args;
   int inactive;
 } patch;
 
@@ -46,7 +49,7 @@ static patches *getpatches(HMODULE shim) {
     return NULL;
   }
   
-  patchcount = qp(-1, NULL, NULL);
+  patchcount = qp(-1, NULL, NULL, NULL, NULL);
   if(patchcount <= 0) {
     FATAL("Bad patch count.\r\n");
     return NULL;
@@ -61,7 +64,7 @@ static patches *getpatches(HMODULE shim) {
   
   p->count = patchcount;
   for(i=0;i<patchcount;i++) {
-    if(qp(i, &p->p[i].name, &p->p[i].desc)) {
+    if(qp(i, &p->p[i].name, &p->p[i].desc, &p->p[i].defaultargs, &p->p[i].argshelp)) {
       FATAL("Patch query or allocation error.\r\n");
       free(p);
       return NULL;
@@ -97,15 +100,38 @@ static int tempfile(char *prefix, char *buf) {
 
 static void usage(char *name, patches *p) {
   int i;
+  int patch_with_args = -1;
   
   INFO("Usage: %s [options] [executable]\r\n", name);
-  INFO("Options:\r\n  /PAUSE:      Instead of closing the console on termation, wait.\r\n  /-PATCHNAME: Disable a patch.\r\n\r\n");
+  INFO("Options:\r\n");
+  INFO("/PAUSE      : Instead of closing the console on termation, wait.\r\n");
+  INFO("/PATCHNAME  : Override the patches default arguments.\r\n");
+  INFO("/-PATCHNAME : Disable a patch.\r\n\r\n");
+
   INFO("Available patches:\r\n");
-  for(i=0;i<p->count;i++)
+
+  for(i=0;i<p->count;i++) {
     INFO("%-15s: %s\r\n", p->p[i].name, p->p[i].desc);
-    
-  if(p->count > 1)
-    INFO("\r\nExample: %s /-%s /-%s gblwin.exe\r\n", name, p->p[0].name, p->p[1].name);
+    if(p->p[i].argshelp != NULL) {
+      if(patch_with_args == -1)
+        patch_with_args = i;
+      INFO("%15s  Arguments : %s\r\n", "", p->p[i].argshelp);
+      INFO("%15s  Default   : %s\r\n", "", p->p[i].defaultargs);
+    }
+  }
+
+  if(p->count > 1) {
+    INFO("\r\nExample usage:\r\n");
+    if(patch_with_args != -1) {
+      int display = 0;
+      if(display == patch_with_args)
+        display = 1;
+
+      INFO("%s /-%s /%s \"%s\" gblwin.exe\r\n", name, p->p[display].name, p->p[patch_with_args].name, p->p[patch_with_args].defaultargs);
+    } else {
+      INFO("%s /-%s /%s gblwin.exe\r\n", name, p->p[0].name, p->p[1].name);
+    }
+  }
   pause = 1;
 }
 
@@ -270,6 +296,16 @@ static void taillog(HANDLE h, HANDLE log, int terminated) {
   INFO("-------------------------------------------------------------------------------\r\n");
 }
 
+static patch *patchfromname(patches *p, char *name) {
+  int i;
+
+  for(i=0;i<p->count;i++)
+    if(!strcmp(name, p->p[i].name))
+      return &p->p[i];
+
+  return NULL;
+}
+
 /* first argument that doesn't begin with / == program name */
 static int processargs(int argc, char **argv, char **executable, char **exeargs, patches *p) {
   int i;  
@@ -280,20 +316,35 @@ static int processargs(int argc, char **argv, char **executable, char **exeargs,
   
   for(i=1;i<argc;i++) {
     if(argv[i][0] == '/') {
-      if(argv[i][1] == '-') {
-        int j, found;
-        for(j=found=0;j<p->count;j++) {
-          if(!strcmp(argv[i] + 2, p->p[j].name)) {
-            found = 1;
-            p->p[j].inactive = 1;
-          }
-        }
-        if(!found) {
-          WARNING("No such patch: %s\r\n", argv[i] + 2);
+      if(!strcmp(argv[i] + 1, "pause")) {
+        pause = 1;
+      } else {
+        int disable = (argv[i][1] == '-')?1:0;
+        char *patchname = argv[i] + (disable?2:1);
+
+        patch *p2 = patchfromname(p, patchname);
+
+        if(p2 == NULL) {
+          WARNING("No such patch: %s\r\n\r\n", patchname);
           return 0;
         }
-      } else if(!strcmp(argv[i] + 1, "pause")) {
-        pause = 1;
+
+        if(disable) {
+          p2->inactive = 1;
+          continue;
+        }
+
+        if(p2->defaultargs == NULL) {
+          WARNING("Patch %s has no arguments.\r\n\r\n", patchname);
+          return 0;
+        }
+
+        if(i >= argc - 1) {
+          WARNING("Patch %s requires arguments.\r\n\r\n", patchname);
+          return 0;
+        }
+
+        p2->args = argv[++i];
       }
     } else {
       *executable = argv[i];
@@ -369,18 +420,8 @@ static int efwrite(HANDLE h, char *format, ...) {
 static char *setupconfig(patches *p) { 
   static char configfile[MAX_PATH];
   HANDLE h;
-  
-  int found = 0, i;
-  for(i=0;i<p->count;i++) {
-    if(p->p[i].inactive) {
-      found = 1;
-      break;
-    }
-  }
-  
-  if(!found)
-    return NULL;
-  
+  int i;
+
   if(!tempfile("mw2", configfile)) {
     WARNING("Unable to get config filename -- ALL PATCHES WILL BE ACTIVE.\r\n");
     return NULL;
@@ -392,10 +433,18 @@ static char *setupconfig(patches *p) {
   
   efwrite(h, "# automatically generated by mw2inject\r\n");
   for(i=0;i<p->count;i++) {
+    int ret;
+
     if(p->p[i].inactive)
       continue;
-      
-    if(!efwrite(h, "%s\r\n", p->p[i].name)) {
+    
+    if(p->p[i].args) {
+      ret = efwrite(h, "%s=%s\r\n", p->p[i].name, p->p[i].args);
+    } else {
+      ret = efwrite(h, "%s\r\n", p->p[i].name);
+    }
+
+    if(!ret) {
       WARNING("Unable to write config file -- ALL PATCHES WILL BE ACTIVE.\r\n");
       DeleteFile(configfile);
       CloseHandle(h);

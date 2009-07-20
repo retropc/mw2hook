@@ -114,8 +114,17 @@ static int LimitRate(int rate) {
   return lastfps;
 }
 
+static int frameratelimit;
+static const char *setupframeratelimit(char *args) {
+  frameratelimit = 1000 / atoi(args);
+  if(frameratelimit < 1 || frameratelimit > 1000)
+    return "Bad frame rate supplied.";
+
+  return NULL;
+}
+
 static HRESULT STDMETHODCALLTYPE FixedUnlock(IDirectDrawSurface *p, LPVOID a) {
-  LimitRate(RATE); 
+  LimitRate(frameratelimit); 
 
   return TrueUnlock(p, a);
 }
@@ -176,5 +185,5 @@ patch patches[] = {
   { "startup", "Fixes startup termination", 1, hstartup },
   { "mechlab", "Fixes Mech Lab overweight issue", 3, hmechlab },
   { "heaphack", "Fixes a lot of random crashes but will increase memory usage.", 1, hheaphack },
-  { "frameratelimit", "Fixes jumpjet and missile problems", 1, hframerate },
+  { "frameratelimit", "Fixes jumpjet and missile problems", 1, hframerate, "30", "[frame rate in frames/second]", setupframeratelimit },
 };

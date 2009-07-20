@@ -10,7 +10,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#define VERSION "1.00"
+#define VERSION "1.10"
 
 static int CALLBACK bfcallback(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData) {
   char *defaultdir = (char *)lpData;

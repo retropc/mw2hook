@@ -14,19 +14,46 @@
 
 #include "mw2shim.h"
 
-static int *activepatches;
+typedef struct {
+  int active;
+  char *args;
+} activepatch;
+
+static activepatch *activepatches;
+
+static char *cstrdup(char *data) {
+  size_t len = strlen(data);
+  char *result = malloc(len + 1);
+  if(result != NULL)
+    memcpy(result, data, len + 1);
+
+  return result;
+}
 
 static void activatepatch(char *name) {
   int i;
   
+  char *args = strchr(name, '='), *patch = name;
+  if(args != NULL)
+    *args++ = '\0';
+
   for(i=0;i<patchcount;i++) {
-    if(!strcmp(patches[i].name, name)) {
-      activepatches[i] = 1;
+    if(!strcmp(patches[i].name, patch)) {
+      activepatches[i].active = 1;
+
+      if(args) {
+        if(activepatches[i].args)
+          free(activepatches[i].args);
+        activepatches[i].args = cstrdup(args);
+      } else {
+        activepatches[i].args = NULL;
+      }
+
       return;
     }
   }
   
-  logentry("Unable to activate patch: %s", name);
+  logentry("Unable to activate patch: %s", patch);
 }
 
 static void configurepatches(void) {
@@ -69,7 +96,7 @@ static void configurepatches(void) {
   logentry("No config file found, activating all patches...");
   
   for(i=0;i<patchcount;i++)
-    activepatches[i] = 1;
+    activepatches[i].active = 1;
 }
 
 static void attachpatches(void) {
@@ -80,20 +107,42 @@ static void attachpatches(void) {
     
   DetourUpdateThread(GetCurrentThread());
   for(i=0,p=&patches[0];i<patchcount;i++,p++) {
-    if(!activepatches[i])
+    char *args;
+
+    if(!activepatches[i].active)
       continue;
-        
-    logentry("Attaching: %s", p->name);
-    for(j=0;j<p->patches;j++) {
+
+    args = activepatches[i].args;
+    if(!args || args[0] == '\0')
+      args = patches[i].defaultargs;
+    if(args) {
+      logentry("Attaching: %s %s", p->name, args);
+    } else {
+      logentry("Attaching: %s", p->name);
+    }
+
+    if(patches[i].setup) {
+      const char *result = patches[i].setup(args);
+      if(activepatches[i].args)
+        free(activepatches[i].args);
+
+      if(result != NULL) {
+        logentry("Failed setting up: %s", result);
+        continue;
+      }
+    } else if(activepatches[i].args)
+      free(activepatches[i].args);
+
+    for(j=0;j<p->hunkcount;j++) {
       if(p->hunks[j].type == HUNK_NAME) {
-        p->hunks[j].truefn = DetourFindFunction(p->hunks[j].dll, p->hunks[j].name);
+        p->hunks[j].truefn = DetourFindFunction(p->hunks[j].dll, p->hunks[j].fnname);
         if(!p->hunks[j].truefn) {
-          logentry("Failed, was unable to locate '%s' inside '%s'", p->hunks[j].name, p->hunks[j].dll);
+          logentry("Failed, was unable to locate '%s' inside '%s'", p->hunks[j].fnname, p->hunks[j].dll);
           continue;
         }
 
-        *((void **)p->hunks[j].origfn) = p->hunks[j].truefn;
-        DetourAttach(p->hunks[j].origfn, p->hunks[j].fixedfn);
+        *((void **)p->hunks[j].__origfn) = p->hunks[j].truefn;
+        DetourAttach(p->hunks[j].__origfn, p->hunks[j].fixedfn);
       } else {
         DetourAttach(p->hunks[j].truefn, p->hunks[j].fixedfn);
       }      
@@ -111,16 +160,19 @@ static void detachpatches(void) {
     
   DetourUpdateThread(GetCurrentThread());
   for(i=0,p=&patches[0];i<patchcount;p++,i++) {
-    if(!activepatches[i])
+    if(!activepatches[i].active)
       continue;
         
     logentry("Detaching: %s", p->name);
-    for(j=0;j<p->patches;j++)
+    for(j=0;j<p->hunkcount;j++)
       if(p->hunks[j].truefn)
-        if(p->hunks[j].name)
-          DetourDetach(p->hunks[j].origfn, p->hunks[j].fixedfn);
+        if(p->hunks[j].fnname)
+          DetourDetach(p->hunks[j].__origfn, p->hunks[j].fixedfn);
         else
           DetourDetach(p->hunks[j].truefn, p->hunks[j].fixedfn);
+
+    if(patches[i].free)
+      patches[i].free();
   }
     
   DetourTransactionCommit();
@@ -141,10 +193,11 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD dwReason, LPVOID reserved) {
     
     logentry("MW2Shim " VERSION " attached to process.");
     
-    activepatches = (int *)malloc(sizeof(int) * patchcount);
+    activepatches = (activepatch *)malloc(sizeof(activepatch) * patchcount);
     if(!activepatches)
       return TRUE;
-    
+    memset(activepatches, 0, sizeof(activepatch) * patchcount);
+
     configurepatches();
     
     attachpatches();
@@ -158,12 +211,14 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD dwReason, LPVOID reserved) {
   return TRUE;
 }
 
-int WINAPI querypatches(int id, char **name, char **description) {
+int WINAPI querypatches(int id, char **name, char **description, char **defaultargs, char **argshelp) {
   if(id < 0)
     return patchcount;
     
   *name = patches[id].name;
   *description = patches[id].description;
+  *defaultargs = patches[id].defaultargs;
+  *argshelp = patches[id].argshelp;
   return 0;
 }
 
