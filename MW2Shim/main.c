@@ -130,21 +130,28 @@ static void attachpatches(void) {
         logentry("Failed setting up: %s", result);
         continue;
       }
-    } else if(activepatches[i].args)
+    } else if(activepatches[i].args) {
       free(activepatches[i].args);
+    }
 
     for(j=0;j<p->hunkcount;j++) {
-      if(p->hunks[j].type == HUNK_NAME) {
-        p->hunks[j].truefn = DetourFindFunction(p->hunks[j].dll, p->hunks[j].fnname);
-        if(!p->hunks[j].truefn) {
-          logentry("Failed, was unable to locate '%s' inside '%s'", p->hunks[j].fnname, p->hunks[j].dll);
+      struct hunk *h = &p->hunks[j];
+
+      if(h->__attached)
+        continue;
+      h->__attached = 1;
+
+      if(h->type == HUNK_NAME) {
+        h->truefn = DetourFindFunction(h->dll, h->fnname);
+        if(!h->truefn) {
+          logentry("Failed, was unable to locate '%s' inside '%s'", h->fnname, h->dll);
           continue;
         }
 
-        *((void **)p->hunks[j].__origfn) = p->hunks[j].truefn;
-        DetourAttach(p->hunks[j].__origfn, p->hunks[j].fixedfn);
+        *((void **)h->__origfn) = h->truefn;
+        DetourAttach(h->__origfn, h->fixedfn);
       } else {
-        DetourAttach(p->hunks[j].truefn, p->hunks[j].fixedfn);
+        DetourAttach(h->truefn, h->fixedfn);
       }      
     }
   }
@@ -164,12 +171,19 @@ static void detachpatches(void) {
       continue;
         
     logentry("Detaching: %s", p->name);
-    for(j=0;j<p->hunkcount;j++)
-      if(p->hunks[j].truefn)
-        if(p->hunks[j].fnname)
-          DetourDetach(p->hunks[j].__origfn, p->hunks[j].fixedfn);
+    for(j=0;j<p->hunkcount;j++) {
+      struct hunk *h = &p->hunks[j];
+
+      if(!h->__attached)
+        continue;
+      h->__attached = 0;
+
+      if(h->truefn)
+        if(h->fnname)
+          DetourDetach(h->__origfn, h->fixedfn);
         else
-          DetourDetach(p->hunks[j].truefn, p->hunks[j].fixedfn);
+          DetourDetach(h->truefn, h->fixedfn);
+    }
 
     if(patches[i].free)
       patches[i].free();

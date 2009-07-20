@@ -60,7 +60,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="detours.lib"
+				AdditionalDependencies="detours.lib winmm.lib"
 				ModuleDefinitionFile="mw2shim.def"
 				GenerateDebugInformation="true"
 				RandomizedBaseAddress="1"
@@ -134,7 +134,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="detours.lib"
+				AdditionalDependencies="detours.lib winmm.lib"
 				ModuleDefinitionFile="mw2shim.def"
 				GenerateDebugInformation="true"
 				OptimizeReferences="2"
@@ -180,6 +180,10 @@
 			</File>
 			<File
 				RelativePath=".\main.c"
+				>
+			</File>
+			<File
+				RelativePath=".\numbers.c"
 				>
 			</File>
 			<File

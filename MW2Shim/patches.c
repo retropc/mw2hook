@@ -9,6 +9,7 @@
 #include <windows.h>
 #include <stdio.h>
 #include <ddraw.h>
+#include <mmsystem.h>
 
 #include "mw2shim.h"
 
@@ -21,6 +22,7 @@ static HRESULT (WINAPI *TrueDirectDrawCreate)(GUID *lpGUID, LPDIRECTDRAW *lplpDD
 
 static HRESULT (STDMETHODCALLTYPE *TrueCreateSurface)(void *, LPDDSURFACEDESC, LPDIRECTDRAWSURFACE *, IUnknown *);
 static HRESULT (STDMETHODCALLTYPE *TrueUnlock)(IDirectDrawSurface *, LPVOID);
+static HRESULT (STDMETHODCALLTYPE *TrueLock)(IDirectDrawSurface *, LPRECT, LPDDSURFACEDESC, DWORD, HANDLE);
 
 static BOOL WINAPI FixedBitBlt(HDC hdc, int x, int y, int cx, int cy, HDC hdcSrc, int x1, int y1, DWORD rop) {
   BOOL b = TrueBitBlt(hdc, x, y, cx, cy, hdcSrc, x1, y1, rop);  
@@ -74,59 +76,104 @@ static BOOL WINAPI FixedHeapFree(HANDLE hHeap, DWORD dwFlags, LPVOID lpMem) {
   return TRUE;
 }
 
-static DWORD limitlasttime, limitavg;
-static int fpscalls, fpslasttime, lastfps = -1;
-static int LimitRate(int rate) {
-  DWORD t = GetTickCount();
-  int timetaken, delta;
-  
-  fpscalls++;
-  if(!fpslasttime)
-    fpslasttime = t;
-  
-  if(t - fpslasttime > 1000) {
-    lastfps = fpscalls;
-    fpscalls = 0;
-    fpslasttime = t;
-  }
-  if(!limitlasttime) {
-    limitlasttime = t;
-    return lastfps;
-  }
-  
-  timetaken = t - limitlasttime;
-  limitlasttime = t;
-  
-  if(!limitavg) {
-    limitavg = timetaken;
-  } else {
-    limitavg = (DWORD)((1 - ALPHA) * (double)limitavg + (ALPHA) * (double)timetaken);
-  }
-  delta = rate - limitavg;
-  if(delta > 10)
-    Sleep(delta);
+static void LimitRate(int rate) {
+  static DWORD nexttick;
+  DWORD t = timeGetTime();
+  DWORD sleepfor;
 
-  t+=delta;
+  if(nexttick == 0)
+    nexttick = t;
+
+  nexttick+=rate;
   
-  while(GetTickCount() < t)
+  /*sleepfor = nexttick - t;*/
+
+  /* for some reason sleeping here screws up windows... */
+
+  while(timeGetTime() < nexttick)
     ;
-    
-  return lastfps;
 }
 
 static int frameratelimit;
 static const char *setupframeratelimit(char *args) {
   frameratelimit = 1000 / atoi(args);
   if(frameratelimit < 1 || frameratelimit > 1000)
-    return "Bad frame rate supplied.";
+    return "Bad frame rate limit supplied.";
 
   return NULL;
 }
 
+static int showfps;
+static const char *setupfpscounter(char *args) {
+  if(!strcmp(args, "1"))
+    showfps = 1;
+  
+  return NULL;
+}
+
+static int getfpsrate() {
+  static DWORD lastticks;
+  static int fps, frames;
+  DWORD ticks = timeGetTime(), delta;
+
+  if(!lastticks) {
+    lastticks = ticks;
+    return 0;
+  }
+
+  frames++;
+  delta = ticks - lastticks;
+  if(delta > 1000) {
+    double denom = ((double)delta / (double)frames);
+    if(denom == 0) {
+      fps = 0;
+    } else {
+      fps = (int)(1000.0 / denom);
+    }
+
+    frames = 0;
+    lastticks = ticks;
+  }
+
+  return fps;
+}
+
+static LPDDSURFACEDESC mainsurface;
 static HRESULT STDMETHODCALLTYPE FixedUnlock(IDirectDrawSurface *p, LPVOID a) {
+  static TIMECAPS timecaps;
+  static int gottimecaps;
+
+  if(gottimecaps == 0) {
+    gottimecaps = 1;
+    if(timeGetDevCaps(&timecaps, sizeof(timecaps)) != TIMERR_NOERROR)
+      timecaps.wPeriodMin = 10;
+  }
+
+  timeBeginPeriod(timecaps.wPeriodMin);
   LimitRate(frameratelimit); 
 
+  if(showfps) {
+    int rate = getfpsrate();
+    int scale = 4, oncolour = 0, offcolour = 255;
+    plotnumbers(rate, mainsurface, 0, 0, scale, oncolour);
+    plotnumbers(rate, mainsurface, 2, 2, scale, oncolour);
+    plotnumbers(rate, mainsurface, 0, 2, scale, oncolour);
+    plotnumbers(rate, mainsurface, 2, 0, scale, oncolour);
+    plotnumbers(rate, mainsurface, 1, 1, scale, offcolour);
+  }
+
+  timeEndPeriod(timecaps.wPeriodMin);
+
   return TrueUnlock(p, a);
+}
+
+static HRESULT STDMETHODCALLTYPE FixedLock(IDirectDrawSurface *p, LPRECT a, LPDDSURFACEDESC b, DWORD c, HANDLE d) {
+  HRESULT ret = TrueLock(p, a, b, c, d);
+  if(ret != DD_OK)
+    return ret;
+
+  mainsurface = b;
+  return ret;
 }
 
 static HRESULT STDMETHODCALLTYPE FixedCreateSurface(void *p, LPDDSURFACEDESC a, LPDIRECTDRAWSURFACE *b, IUnknown *c) {
@@ -142,6 +189,12 @@ static HRESULT STDMETHODCALLTYPE FixedCreateSurface(void *p, LPDDSURFACEDESC a, 
     TrueUnlock = psurf->lpVtbl->Unlock;
   psurf->lpVtbl->Unlock = FixedUnlock;
   
+  if(showfps) {
+    if(psurf->lpVtbl->Lock != FixedLock)
+      TrueLock = psurf->lpVtbl->Lock;
+    psurf->lpVtbl->Lock = FixedLock;
+  }
+
   return ret;
 }
 
@@ -175,15 +228,15 @@ static hunk hheaphack[] = {
   { HUNK_FUNC, (void *)&FixedHeapFree, (void *)&TrueHeapFree },
 };
 
-static hunk hframerate[] = {
+static hunk hddraw[] = {
   { HUNK_NAME, (void *)&FixedDirectDrawCreate, NULL, "ddraw.dll", "DirectDrawCreate", &TrueDirectDrawCreate },
 };
 
-int patchcount = 4;
-
+int patchcount = 5;
 patch patches[] = { 
   { "startup", "Fixes startup termination", 1, hstartup },
   { "mechlab", "Fixes Mech Lab overweight issue", 3, hmechlab },
   { "heaphack", "Fixes a lot of random crashes but will increase memory usage.", 1, hheaphack },
-  { "frameratelimit", "Fixes jumpjet and missile problems", 1, hframerate, "30", "[frame rate in frames/second]", setupframeratelimit },
+  { "frameratelimit", "Fixes jumpjet and missile problems", 1, hddraw, "45", "[frame rate in frames/second]", setupframeratelimit },
+  { "fpscounter", "FPS counter", 1, hddraw, "0", "[1 to enable]", setupfpscounter },
 };

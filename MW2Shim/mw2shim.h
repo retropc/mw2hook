@@ -19,6 +19,7 @@
 void openlog(char *);
 void closelog(void);
 void logentry(char *, ...);
+void plotnumbers(int numbers, void *surface, int x, int y, int scale, unsigned char colour);
 
 #define HUNK_FUNC  0 /* hook by function address */
 #define HUNK_NAME  1 /* hook by function name */
@@ -30,6 +31,7 @@ typedef struct hunk {
   char *dll; /* HUNK_NAME only: dll to hook fnname inside */
   char *fnname; /* HUNK_NAME only: function name to hook */
   void *__origfn; /* internal usage only, used to store original function pointer */
+  int __attached; /* internal use only, signals whether or not this hook is attached */
 } hunk;
 
 typedef struct patch {
